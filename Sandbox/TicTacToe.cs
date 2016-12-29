@@ -24,6 +24,11 @@ namespace Sandbox
                 this.X = x;
                 this.Y = y;
             }
+
+            public override String ToString()
+            {
+                return $"({X}, {Y})";
+            }
         }
 
         public class State : IEquatable<State>
@@ -45,6 +50,26 @@ namespace Sandbox
                 for (int i = 0; i < this.H; i++)
                     for (int j = 0; j < this.W; j++)
                         this.Board[i, j] = (Symbol)board[i, j];
+            }
+
+            public override String ToString()
+            {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < H; i++)
+                {
+                    for (int j = 0; j < W; j++)
+                    {
+                        switch(this.Board[i,j])
+                        {
+                            case Symbol.None: sb.Append('.'); break;
+                            case Symbol.O: sb.Append('O'); break;
+                            case Symbol.X: sb.Append('X'); break;
+                        }
+                    }
+                    sb.AppendLine();
+                }
+
+                return sb.ToString();
             }
 
             public State Clone()
@@ -96,7 +121,7 @@ namespace Sandbox
                 return Symbol.None;
             }
 
-            public Symbol WhoWon()
+            public Symbol? WhoWon()
             {
                 for (int i = 0; i < H; i++)
                 {
@@ -122,7 +147,10 @@ namespace Sandbox
                     s = IsLineLenExists(j, H - 1, 1, -1);
                     if (s != Symbol.None) return s;
                 }
-                return Symbol.None;
+
+                List<IntPoint> freePos = GetFreePositions();
+                if (freePos.Count > 0) return null;
+                else return Symbol.None;
             }
 
             public List<IntPoint> GetFreePositions()
@@ -138,36 +166,102 @@ namespace Sandbox
 
         public class Agent
         {
+            public Symbol Symb;
             public double LR;
             public double Eps;
             public Dictionary<State, double> V = new Dictionary<State, double>();
 
             Random rng;
 
-            public Agent(double lr, double eps)
+            public Agent(Symbol s, double lr, double eps, int rngSeed)
             {
+                this.Symb = s;
                 this.LR = lr;
                 this.Eps = eps;
-                this.rng = new Random();
+                this.rng = new Random(rngSeed);
             }
 
             public void TrainOneEpisode(State s, IAdversary adversary)
             {
-                while(true)
+                while (true)
                 {
-                    double reward;
+                    State nextState = adversary.MakeMove(s);
+                    Symbol? won = nextState.WhoWon();
+                    if (!won.HasValue)
+                    {
+                        List<IntPoint> freePos = nextState.GetFreePositions();
+                        IntPoint p = new IntPoint(-1, -1);
+                        if (rng.NextDouble() < this.Eps)                        
+                            p = freePos[rng.Next(freePos.Count)];                        
+                        else
+                            p = GetBestMove(nextState);                        
+
+                        nextState = nextState.Clone();
+                        nextState.Board[p.Y, p.X] = Symb;
+                    }                    
+
+                    double v = GetValue(s);
+                    double nv = GetValue(nextState);                    
+                    double updV = v + (nv - v) * LR;
+                    V[s] = updV;
+
+                    won = nextState.WhoWon();
+                    if (won.HasValue) break;
+
+                    s = nextState;
+                }
+            }
+
+            public Symbol Play(State start, IAdversary adversary)
+            {
+                State s = start;
+                while (true)
+                {
                     s = adversary.MakeMove(s);
-                    List<IntPoint> freePos = s.GetFreePositions();
-                    if (freePos.Count == 0)
-                        reward = 0;
-                    else
-                    {                       
-                        if(rng.NextDouble() < this.Eps)
-                        {
-                            IntPoint p = freePos[rng.Next(freePos.Count)];
-                        }
+                    Symbol? won = s.WhoWon();
+                    if (won.HasValue) return won.Value;
+
+                    IntPoint move = GetBestMove(s);
+                    s = s.Clone();
+                    s.Board[move.Y, move.X] = Symb;
+                    won = s.WhoWon();
+                    if (won.HasValue) return won.Value;
+                }
+            }
+
+            double GetValue(State s)
+            {               
+                double v;
+                if(!V.TryGetValue(s, out v))
+                {
+                    Symbol? won = s.WhoWon();
+                    if (!won.HasValue) v = 0.5;
+                    else if (won == Symb) v = 1.0;
+                    else v = 0.0;
+                    
+                    V[s] = v;
+                }               
+
+                return v;
+            }
+
+            public IntPoint GetBestMove(State s)
+            {
+                IntPoint move = new IntPoint(-1, -1);
+                List<IntPoint> freePos = s.GetFreePositions();
+                double bestValue = double.MinValue;
+                foreach (IntPoint cp in freePos)
+                {
+                    State ns = s.Clone();
+                    ns.Board[cp.Y, cp.X] = Symb;
+                    double cv = GetValue(ns);
+                    if (cv > bestValue)
+                    {
+                        bestValue = cv;
+                        move = cp;
                     }
                 }
+                return move;
             }
         }
 
@@ -181,18 +275,64 @@ namespace Sandbox
             Random rng;
             Symbol symbol;
 
-            public RandomAdversary(Symbol symbol)
+            public RandomAdversary(Symbol symbol, int rngSeed)
             {
                 this.symbol = symbol;
-                rng = new Random();
+                rng = new Random(rngSeed);
             }
 
             public State MakeMove(State s)
             {
                 List<IntPoint> freePositions = s.GetFreePositions();
+                if (freePositions.Count == 0) return s;
+
                 State n = s.Clone();
                 IntPoint p = freePositions[rng.Next(freePositions.Count)];
                 n.Board[p.Y, p.X] = symbol;
+                return n;
+            }
+        }
+
+        public class FirstFreeAdversary : IAdversary
+        {           
+            Symbol symbol;
+
+            public FirstFreeAdversary(Symbol symbol)
+            {
+                this.symbol = symbol;                
+            }
+
+            public State MakeMove(State s)
+            {
+                List<IntPoint> freePositions = s.GetFreePositions();
+                if (freePositions.Count == 0) return s;
+
+                State n = s.Clone();
+                IntPoint p = freePositions[0];
+                n.Board[p.Y, p.X] = symbol;
+                return n;
+            }
+        }
+
+        public class SelfAdversary : IAdversary
+        {
+            Symbol symb;
+            Agent agent;
+
+            public SelfAdversary(Symbol symb, Agent agent)
+            {
+                this.symb = symb;
+                this.agent = agent;
+            }
+
+            public State MakeMove(State s)
+            {
+                List<IntPoint> freePositions = s.GetFreePositions();
+                if (freePositions.Count == 0) return s;
+                
+                IntPoint p = agent.GetBestMove(s);
+                State n = s.Clone();
+                n.Board[p.Y, p.X] = symb;
                 return n;
             }
         }
@@ -208,7 +348,7 @@ namespace Sandbox
                     {0,0,0},
                     {0,0,0}
                 });
-            Debug.Assert(st.WhoWon() == TicTacToe.Symbol.None);
+            Debug.Assert(st.WhoWon() == null);
 
             st = new TicTacToe.State(3, new int[,]
                 {
@@ -240,7 +380,7 @@ namespace Sandbox
                     {1,2,2},
                     {0,0,1}
                 });
-            Debug.Assert(st.WhoWon() == TicTacToe.Symbol.None);
+            Debug.Assert(st.WhoWon() == null);
 
             st = new TicTacToe.State(3, new int[,]
                {
@@ -266,7 +406,7 @@ namespace Sandbox
                     {0,0,1,0},
                     {2,1,1,0}
                });
-            Debug.Assert(st.WhoWon() == TicTacToe.Symbol.None);
+            Debug.Assert(st.WhoWon() == null);
         }
     }
 }
