@@ -162,6 +162,22 @@ namespace Sandbox
                             ps.Add(new IntPoint(j, i));
                 return ps;                
             }
+
+            public State InvertSymbols()
+            {
+                State c = new State(this.W, this.H, this.LineLen);
+                for (int i = 0; i < this.H; i++)
+                    for (int j = 0; j < this.W; j++)
+                    {
+                        switch(this.Board[i,j])
+                        {
+                            case Symbol.O: c.Board[i, j] = Symbol.X; break;
+                            case Symbol.X: c.Board[i, j] = Symbol.O; break;
+                        }                        
+                    }
+                
+                return c;
+            }
         }
 
         public class Agent
@@ -183,9 +199,14 @@ namespace Sandbox
 
             public void TrainOneEpisode(State s, IAdversary adversary)
             {
-                while (true)
+                bool firstTurn = rng.NextDouble() > 0.5;
+                for(int k = 0; ;k++)
                 {
-                    State nextState = adversary.MakeMove(s);
+                    State nextState;
+                    if (k > 0 || !firstTurn)
+                        nextState = adversary.MakeMove(s);
+                    else
+                        nextState = s;                    
                     Symbol? won = nextState.WhoWon();
                     if (!won.HasValue)
                     {
@@ -214,10 +235,13 @@ namespace Sandbox
 
             public Symbol Play(State start, IAdversary adversary)
             {
+                bool firstTurn = rng.NextDouble() > 0.5;
                 State s = start;
-                while (true)
-                {
-                    s = adversary.MakeMove(s);
+                for (int k = 0; ; k++)
+                {                    
+                    if (k > 0 || !firstTurn)
+                        s = adversary.MakeMove(s);
+                    
                     Symbol? won = s.WhoWon();
                     if (won.HasValue) return won.Value;
 
@@ -329,8 +353,9 @@ namespace Sandbox
             {
                 List<IntPoint> freePositions = s.GetFreePositions();
                 if (freePositions.Count == 0) return s;
-                
-                IntPoint p = agent.GetBestMove(s);
+
+                State invState = s.InvertSymbols();
+                IntPoint p = agent.GetBestMove(invState);
                 State n = s.Clone();
                 n.Board[p.Y, p.X] = symb;
                 return n;
