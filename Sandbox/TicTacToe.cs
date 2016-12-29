@@ -208,23 +208,28 @@ namespace Sandbox
                     else
                         nextState = s;                    
                     Symbol? won = nextState.WhoWon();
+                    bool exploratoryMove = false;
                     if (!won.HasValue)
                     {
                         List<IntPoint> freePos = nextState.GetFreePositions();
                         IntPoint p = new IntPoint(-1, -1);
-                        if (rng.NextDouble() < this.Eps)                        
-                            p = freePos[rng.Next(freePos.Count)];                        
+                        exploratoryMove = rng.NextDouble() < this.Eps;
+                        if (exploratoryMove)
+                            p = freePos[rng.Next(freePos.Count)];
                         else
-                            p = GetBestMove(nextState);                        
+                            p = GetBestMove(nextState);
 
                         nextState = nextState.Clone();
                         nextState.Board[p.Y, p.X] = Symb;
-                    }                    
+                    }
 
-                    double v = GetValue(s);
-                    double nv = GetValue(nextState);                    
-                    double updV = v + (nv - v) * LR;
-                    V[s] = updV;
+                    if (!exploratoryMove)
+                    {
+                        double v = GetValue(s);
+                        double nv = GetValue(nextState);
+                        double updV = v + (nv - v) * LR;
+                        V[s] = updV;
+                    }
 
                     won = nextState.WhoWon();
                     if (won.HasValue) break;

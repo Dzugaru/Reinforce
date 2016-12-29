@@ -13,12 +13,12 @@ namespace Sandbox
         {
             TestsTicTacToe.Test1();
 
-            TicTacToe.Agent agent = new TicTacToe.Agent(TicTacToe.Symbol.X, 0.1, 0.1, rngSeed:1);
-            TicTacToe.IAdversary adversaryTrain = new TicTacToe.SelfAdversary(TicTacToe.Symbol.O, agent);
-            TicTacToe.IAdversary adversaryTest = new TicTacToe.RandomAdversary(TicTacToe.Symbol.O, rngSeed:2);
-
-            //TicTacToe.IAdversary adversaryTrain = new TicTacToe.RandomAdversary(TicTacToe.Symbol.O, rngSeed: 3);
+            TicTacToe.Agent agent = new TicTacToe.Agent(TicTacToe.Symbol.X, 0.1, 0.03, rngSeed:1);
+            //TicTacToe.IAdversary adversaryTrain = new TicTacToe.SelfAdversary(TicTacToe.Symbol.O, agent);
             //TicTacToe.IAdversary adversaryTest = new TicTacToe.RandomAdversary(TicTacToe.Symbol.O, rngSeed:2);
+
+            TicTacToe.IAdversary adversaryTrain = new TicTacToe.RandomAdversary(TicTacToe.Symbol.O, rngSeed: 3);
+            TicTacToe.IAdversary adversaryTest = new TicTacToe.RandomAdversary(TicTacToe.Symbol.O, rngSeed:2);
 
             //TicTacToe.IAdversary adversaryTrain = new TicTacToe.SelfAdversary(TicTacToe.Symbol.O, agent);
             //TicTacToe.IAdversary adversaryTest = new TicTacToe.SelfAdversary(TicTacToe.Symbol.O, agent);
@@ -41,7 +41,7 @@ namespace Sandbox
 
             for (int k = 0;;k++)
             {
-                int numEpisodes = 100;
+                int numEpisodes = 1000;
                 for (int i = 0; i < numEpisodes; i++)
                     agent.TrainOneEpisode(startState, adversaryTrain);
 
